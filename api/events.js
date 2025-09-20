@@ -27,16 +27,17 @@ module.exports = async (req, res) => {
       const { title, date, extendedProps } = body || {};
       if (!title || !date) return res.status(400).json({ error: 'title과 date는 필수입니다.' });
 
+      // 🔁 여기! sql.json 대신 JSON 문자열 + ::jsonb 캐스팅 사용
       await sql`
         INSERT INTO events (title, date, extendedprops)
-        VALUES (${title}, ${date}, ${sql.json(extendedProps || {})});
+        VALUES (${title}, ${date}, ${JSON.stringify(extendedProps || {})}::jsonb);
       `;
+
       return res.status(200).json({ ok: true });
     }
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (err) {
-    console.error(err);
     return res.status(500).json({ error: err.message });
   }
 };
