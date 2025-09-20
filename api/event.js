@@ -1,27 +1,42 @@
 // ferarchive/api/events.js
+const { sql } = require('@vercel/postgres');
 
-import { sql } from '@vercel/postgres';
-
-export default async function handler(request, response) {
+module.exports = async (req, res) => {
   try {
-    const { method } = request;
+    // 테이블 없으면 생성
+    await sql`
+      CREATE TABLE IF NOT EXISTS events (
+        id SERIAL PRIMARY KEY,
+        title TEXT,
+        date DATE,
+        extendedprops JSONB
+      );
+    `;
 
-    // GET 요청: 모든 이벤트 데이터 가져오기
-    if (method === 'GET') {
-      const { rows } = await sql`SELECT * FROM events;`;
-      return response.status(200).json(rows);
+    if (req.method === 'GET') {
+      const { rows } = await sql`
+        SELECT id, title, date, extendedprops AS "extendedProps"
+        FROM events
+        ORDER BY id DESC;
+      `;
+      return res.status(200).json(rows);
     }
-    
-    // POST 요청: 새로운 이벤트 데이터 추가하기
-    if (method === 'POST') {
-      const { title, date, extendedProps } = request.body;
-      await sql`INSERT INTO events (title, date, extendedProps) VALUES (${title}, ${date}, ${extendedProps});`;
-      return response.status(200).json({ message: 'Event added successfully' });
+
+    if (req.method === 'POST') {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const { title, date, extendedProps } = body || {};
+      if (!title || !date) return res.status(400).json({ error: 'title과 date는 필수입니다.' });
+
+      await sql`
+        INSERT INTO events (title, date, extendedprops)
+        VALUES (${title}, ${date}, ${sql.json(extendedProps || {})});
+      `;
+      return res.status(200).json({ ok: true });
     }
 
-    return response.status(405).json({ message: 'Method Not Allowed' });
-
-  } catch (error) {
-    return response.status(500).json({ error: error.message });
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
   }
-}
+};
