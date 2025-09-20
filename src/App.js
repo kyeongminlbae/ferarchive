@@ -7,12 +7,12 @@ import interactionPlugin from '@fullcalendar/interaction';
 
 import './App.css';
 
-// ✅ 모달 컴포넌트 (이전과 동일)
+// ✅ 모달 컴포넌트
 const DetailModal = ({ event, onClose }) => {
   if (!event) return null;
 
   const getLabel = (category) => {
-    switch(category) {
+    switch (category) {
       case '영화': return '감독, 연출, 작가';
       case '책': return '작가';
       case '전시': return '작가, 기획자';
@@ -21,7 +21,7 @@ const DetailModal = ({ event, onClose }) => {
   };
 
   const getSubLabel = (category) => {
-    switch(category) {
+    switch (category) {
       case '영화': return '배우';
       case '책': return '출판사';
       case '전시': return '장소';
@@ -64,34 +64,42 @@ function App() {
 
   // ✅ 1. 컴포넌트 로드 시 API에서 데이터 가져오기
   useEffect(() => {
-    fetch('/api/events')
-      .then(response => response.json())
-      .then(data => {
-        // API에서 가져온 데이터 형식에 맞게 변환
-        const formattedEvents = data.map(event => ({
-          title: event.title,
-          date: event.date,
-          extendedProps: event.extendedprops
+    const load = async () => {
+      try {
+        const res = await fetch('/api/events');
+        if (!res.ok) throw new Error('Failed to fetch');
+
+        const data = await res.json();
+
+        const formatted = data.map(ev => ({
+          id: ev.id,
+          title: ev.title,
+          date: typeof ev.date === 'string' ? ev.date.slice(0, 10) : ev.date,
+          extendedProps: ev.extendedProps || {}
         }));
-        setEvents(formattedEvents);
-        console.log("📂 API에서 불러옴:", formattedEvents);
-      })
-      .catch(error => console.error("Error fetching events:", error));
+
+        setEvents(formatted);
+        console.log('📂 API에서 불러옴:', formatted);
+      } catch (err) {
+        console.error('Error fetching events:', err);
+      }
+    };
+
+    load();
   }, []);
 
-  // ✅ 2. 새로운 기록 추가 시 API에 데이터 전송하기
+  // ✅ 2. 새로운 기록 추가 (POST)
   const handleDateClick = async (arg) => {
     const categoryOption = prompt(
       '어떤 기록을 남기시겠어요?\n\n1: 영화 🎬\n2: 책 📚\n3: 전시 🖼️\n\n번호를 입력하세요 (취소하려면 ESC)'
     );
-    // ... (기존 로직과 동일, 데이터베이스에 저장할 정보만 준비)
-    if (!categoryOption) return; 
+    if (!categoryOption) return;
 
     let title, creator, actorsOrAuthor, review;
-    let categoryTitle = ""; 
+    let categoryTitle = "";
 
     switch (categoryOption) {
-      case '1': 
+      case '1':
         title = prompt('🎬 영화 제목을 입력하세요:');
         if (!title) return;
         creator = prompt('🎬 감독, 작가, 연출은 누구인가요? (쉼표로 구분)');
@@ -99,7 +107,7 @@ function App() {
         review = prompt('📝 한 줄 감상평을 입력해주세요:');
         categoryTitle = "영화";
         break;
-      case '2': 
+      case '2':
         title = prompt('📚 책 제목을 입력하세요:');
         if (!title) return;
         creator = prompt('🧑‍💻 작가는 누구인가요?');
@@ -107,7 +115,7 @@ function App() {
         review = prompt('📝 한 줄 감상평을 입력해주세요:');
         categoryTitle = "책";
         break;
-      case '3': 
+      case '3':
         title = prompt('🖼️ 전시 제목을 입력하세요:');
         if (!title) return;
         creator = prompt('🎨 작가는 누구인가요?');
@@ -120,51 +128,88 @@ function App() {
         return;
     }
 
-    const fullTitle = `${title}
-${categoryTitle === "영화" ? "🎬 감독" : categoryTitle === "책" ? "🧑‍💻 작가" : "🎨 작가, 기획자"}: ${creator || "없음"}
-${categoryTitle === "영화" ? "🧑‍🎤 배우" : categoryTitle === "책" ? "📖 출판사" : "🏛️ 장소"}: ${actorsOrAuthor || "없음"}
-⭐ 감상평: ${review || "없음"}`;
-
     const newEvent = {
-      title: fullTitle,
+      title,
       date: arg.dateStr,
       extendedProps: {
-        category: categoryTitle, 
+        category: categoryTitle,
         creator,
         actorsOrAuthor,
         review,
       },
     };
 
-    // ✅ API에 POST 요청 보내기
     try {
       await fetch('/api/events', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newEvent),
       });
-      // 성공 시 상태 업데이트
-      setEvents((prevEvents) => [...prevEvents, newEvent]);
+      setEvents((prev) => [...prev, newEvent]);
       console.log("💾 데이터베이스에 저장됨:", newEvent);
     } catch (error) {
       console.error("Error saving event:", error);
     }
   };
 
-  // ✅ 이벤트 클릭 시 모달 띄우기 (이전과 동일)
-  const handleEventClick = (clickInfo) => {
-    const event = clickInfo.event;
-    setSelectedEvent(event);
-    setShowModal(true);
+  // ✅ 3. 이벤트 클릭 → 수정 / 삭제
+  const handleEventClick = async (clickInfo) => {
+    const ev = clickInfo.event;
+
+    const action = prompt('무엇을 하시겠어요?\n1: 감상평 수정\n2: 삭제\n(취소하려면 Esc)', '1');
+    if (!action) return;
+
+    // 수정
+    if (action === '1') {
+      const current = ev.extendedProps.review || '';
+      const review = prompt('감상평을 입력/수정하세요', current);
+      if (review == null) return;
+
+      try {
+        await fetch('/api/events', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: Number(ev.id),
+            title: ev.title,
+            date: ev.startStr?.slice(0, 10) || ev.extendedProps.date || '',
+            extendedProps: { ...ev.extendedProps, review }
+          })
+        });
+
+        ev.setExtendedProp('review', review);
+        alert('수정 완료!');
+      } catch (err) {
+        console.error('Error updating event:', err);
+        alert('수정 실패');
+      }
+    }
+
+    // 삭제
+    if (action === '2') {
+      if (!window.confirm('정말 삭제할까요?')) return;
+
+      try {
+        await fetch('/api/events', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: Number(ev.id) })
+        });
+
+        ev.remove();
+        alert('삭제 완료!');
+      } catch (err) {
+        console.error('Error deleting event:', err);
+        alert('삭제 실패');
+      }
+    }
   };
-  
+
   const handleCloseModal = () => {
     setShowModal(false);
     setSelectedEvent(null);
   };
-  
+
   return (
     <div className="App">
       <h1>ferarchive</h1>
