@@ -5,11 +5,65 @@ import interactionPlugin from '@fullcalendar/interaction';
 
 import './App.css';
 
+// ✅ 모달 컴포넌트
+const DetailModal = ({ event, onClose }) => {
+  if (!event) return null;
+
+  // 확장 속성에서 카테고리에 맞는 제목 추출
+  const getLabel = (category) => {
+    switch(category) {
+      case '영화': return '감독, 연출, 작가';
+      case '책': return '작가';
+      case '전시': return '작가, 기획자';
+      default: return '';
+    }
+  };
+
+  const getSubLabel = (category) => {
+    switch(category) {
+      case '영화': return '배우';
+      case '책': return '출판사';
+      case '전시': return '장소';
+      default: return '';
+    }
+  };
+
+  const mainTitle = event.title.split('\n')[0];
+  const creatorLabel = getLabel(event.extendedProps.category);
+  const actorsOrAuthorLabel = getSubLabel(event.extendedProps.category);
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <button className="modal-close-btn" onClick={onClose}>&times;</button>
+        <div className="modal-header">
+          <h2>{mainTitle}</h2>
+          <p className="modal-category">{event.extendedProps.category}</p>
+        </div>
+        <div className="modal-body">
+          <div className="modal-section">
+            <p><strong>{creatorLabel}:</strong> {event.extendedProps.creator || '없음'}</p>
+            <p><strong>{actorsOrAuthorLabel}:</strong> {event.extendedProps.actorsOrAuthor || '없음'}</p>
+          </div>
+          <hr />
+          <div className="modal-section review-section">
+            <h3>나의 감상평</h3>
+            <p>{event.extendedProps.review || '없음'}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function App() {
   const [events, setEvents] = useState(() => {
     const saved = localStorage.getItem('movieEvents');
     return saved ? JSON.parse(saved) : [];
   });
+  // ✅ 모달 관련 상태
+  const [showModal, setShowModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
 
   // 2️⃣ events가 변경될 때만 저장
   useEffect(() => {
@@ -23,13 +77,13 @@ function App() {
       '어떤 기록을 남기시겠어요?\n\n1: 영화 🎬\n2: 책 📚\n3: 전시 🖼️\n\n번호를 입력하세요 (취소하려면 ESC)'
     );
 
-    if (!categoryOption) return; // 취소 버튼을 누르면 종료
+    if (!categoryOption) return; 
 
     let title, creator, actorsOrAuthor, review;
-    let categoryTitle = ""; // 이벤트 제목에 표시될 카테고리
+    let categoryTitle = ""; 
 
     switch (categoryOption) {
-      case '1': // 영화
+      case '1': 
         title = prompt('🎬 영화 제목을 입력하세요:');
         if (!title) return;
         creator = prompt('🎬 감독, 작가, 연출은 누구인가요? (쉼표로 구분)');
@@ -38,7 +92,7 @@ function App() {
         categoryTitle = "영화";
         break;
 
-      case '2': // 책
+      case '2': 
         title = prompt('📚 책 제목을 입력하세요:');
         if (!title) return;
         creator = prompt('🧑‍💻 작가는 누구인가요?');
@@ -47,10 +101,10 @@ function App() {
         categoryTitle = "책";
         break;
 
-      case '3': // 전시
+      case '3': 
         title = prompt('🖼️ 전시 제목을 입력하세요:');
         if (!title) return;
-        creator = prompt('🎨 작가, 기획자는 누구인가요?');
+        creator = prompt('🎨 작가는 누구인가요?');
         actorsOrAuthor = prompt('🏛️ 장소는 어디인가요?');
         review = prompt('📝 한 줄 감상평을 입력해주세요:');
         categoryTitle = "전시";
@@ -72,7 +126,7 @@ ${categoryTitle === "영화" ? "🧑‍🎤 배우" : categoryTitle === "책" ? 
         title: fullTitle,
         date: arg.dateStr,
         extendedProps: {
-          category: categoryTitle, // ✅ 카테고리 정보 추가
+          category: categoryTitle, 
           creator,
           actorsOrAuthor,
           review,
@@ -81,75 +135,84 @@ ${categoryTitle === "영화" ? "🧑‍🎤 배우" : categoryTitle === "책" ? 
     ]);
   };
 
-  // 이벤트 클릭 시 수정/삭제
+  // ✅ 이벤트 클릭 시 모달 띄우기
   const handleEventClick = (clickInfo) => {
     const event = clickInfo.event;
-    const action = prompt(
-      `📌 '${event.title.split("\n")[0]}'을(를) 어떻게 할까요?\n\n1: 수정\n2: 삭제\n\n번호를 입력하세요 (취소하려면 ESC)`
-    );
+    // 이벤트 클릭 시 바로 모달을 띄우고, 모달 내부에서 수정/삭제 기능 제공
+    setSelectedEvent(event);
+    setShowModal(true);
+  };
+  
+  // 모달 닫기
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setSelectedEvent(null);
+  };
+  
+  // 모달 내부에서 수정
+  const handleEdit = () => {
+    const currentCategory = selectedEvent.extendedProps?.category;
+    const currentTitle = selectedEvent.title.split("\n")[0].trim();
+    let updatedCreator, updatedActorsOrAuthor, updatedReview;
+    let promptCreator, promptActorsOrAuthor;
+  
+    if (currentCategory === "영화") {
+      promptCreator = '🎬 감독, 작가, 연출을 수정하세요:';
+      promptActorsOrAuthor = '🎭 배우를 수정하세요:';
+    } else if (currentCategory === "책") {
+      promptCreator = '🧑‍💻 작가를 수정하세요:';
+      promptActorsOrAuthor = '📖 출판사를 수정하세요:';
+    } else { // 전시
+      promptCreator = '🎨 작가, 기획자를 수정하세요:';
+      promptActorsOrAuthor = '🏛️ 장소를 수정하세요:';
+    }
+  
+    updatedCreator = prompt(promptCreator, selectedEvent.extendedProps?.creator || "");
+    updatedActorsOrAuthor = prompt(promptActorsOrAuthor, selectedEvent.extendedProps?.actorsOrAuthor || "");
+    updatedReview = prompt('📝 감상평을 수정하세요:', selectedEvent.extendedProps?.review || "");
 
-    if (!action) return;
-
-    // 현재 이벤트의 카테고리 가져오기
-    const currentCategory = event.extendedProps?.category;
-    const currentTitle = event.title.split("\n")[0].trim();
-
-    if (action === '1') {
-      let updatedCreator, updatedActorsOrAuthor, updatedReview;
-      let promptCreator, promptActorsOrAuthor;
-
-      // 카테고리에 따라 프롬프트 문구 변경
-      if (currentCategory === "영화") {
-        promptCreator = '🎬 감독, 작가, 연출을 수정하세요:';
-        promptActorsOrAuthor = '🎭 배우를 수정하세요:';
-      } else if (currentCategory === "책") {
-        promptCreator = '🧑‍💻 작가를 수정하세요:';
-        promptActorsOrAuthor = '📖 출판사를 수정하세요:';
-      } else { // 전시
-        promptCreator = '🎨 작가, 기획자를 수정하세요:';
-        promptActorsOrAuthor = '🏛️ 장소를 수정하세요:';
-      }
-
-      updatedCreator = prompt(promptCreator, event.extendedProps?.creator || "");
-      updatedActorsOrAuthor = prompt(promptActorsOrAuthor, event.extendedProps?.actorsOrAuthor || "");
-      updatedReview = prompt('📝 감상평을 수정하세요:', event.extendedProps?.review || "");
-
-      const newTitle = `${currentTitle}
+    if (!updatedCreator && !updatedActorsOrAuthor && !updatedReview) return;
+  
+    const newTitle = `${currentTitle}
 ${currentCategory === "영화" ? "🎬 감독" : currentCategory === "책" ? "🧑‍💻 작가" : "🎨 작가, 기획자"}: ${updatedCreator || "없음"}
 ${currentCategory === "영화" ? "🧑‍🎤 배우" : currentCategory === "책" ? "📖 출판사" : "🏛️ 장소"}: ${updatedActorsOrAuthor || "없음"}
 ⭐ 감상평: ${updatedReview || "없음"}`;
-
+  
+    setEvents((prevEvents) =>
+      prevEvents.map((ev) =>
+        ev.date === selectedEvent.startStr && ev.title === selectedEvent.title
+          ? {
+              ...ev,
+              title: newTitle,
+              extendedProps: {
+                category: currentCategory,
+                creator: updatedCreator,
+                actorsOrAuthor: updatedActorsOrAuthor,
+                review: updatedReview,
+              },
+            }
+          : ev
+      )
+    );
+    handleCloseModal(); // 수정 후 모달 닫기
+  };
+  
+  // 모달 내부에서 삭제
+  const handleDelete = () => {
+    if (window.confirm("정말로 삭제하시겠어요? 🗑️")) {
       setEvents((prevEvents) =>
-        prevEvents.map((ev) =>
-          ev.date === event.startStr && ev.title === event.title
-            ? {
-                ...ev,
-                title: newTitle,
-                extendedProps: {
-                  category: currentCategory,
-                  creator: updatedCreator,
-                  actorsOrAuthor: updatedActorsOrAuthor,
-                  review: updatedReview,
-                },
-              }
-            : ev
+        prevEvents.filter(
+          (ev) => !(ev.date === selectedEvent.startStr && ev.title === selectedEvent.title)
         )
       );
-    } else if (action === '2') {
-      if (window.confirm("정말로 삭제하시겠어요? 🗑️")) {
-        setEvents((prevEvents) =>
-          prevEvents.filter(
-            (ev) => !(ev.date === event.startStr && ev.title === event.title)
-          )
-        );
-      }
+      handleCloseModal(); // 삭제 후 모달 닫기
     }
   };
-
+  
 
   return (
     <div className="App">
-      <h1>🎞️ 영화, 책, 전시 기록장</h1>
+      <h1>🎞️ ferarchive</h1>
       <FullCalendar
         plugins={[dayGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
@@ -161,6 +224,12 @@ ${currentCategory === "영화" ? "🧑‍🎤 배우" : currentCategory === "책
         }}
         height="auto"
       />
+      {showModal && (
+        <DetailModal
+          event={selectedEvent}
+          onClose={handleCloseModal}
+        />
+      )}
     </div>
   );
 }
