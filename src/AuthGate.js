@@ -1,7 +1,7 @@
 // src/AuthGate.js
 import React, { useEffect, useState } from 'react';
 
-cconst PASS = process.env.REACT_APP_APP_PASS ?? '';
+const PASS = process.env.REACT_APP_APP_PASS ?? '';
 console.log('[AuthGate] PASS set?', Boolean(PASS)); // ← 프로덕션 콘솔에서 true 떠야 정상
 
 export default function AuthGate({ children }) {
