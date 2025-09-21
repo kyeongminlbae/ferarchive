@@ -15,13 +15,13 @@ export default function AuthGate({ children }) {
       setOk(true);
       return;
     }
-    if (localStorage.getItem('ferauth') === '1') setOk(true);
+    if (sessionStorage.getItem('ferauth') === '1') setOk(true);
   }, []);
 
   const onSubmit = (e) => {
     e.preventDefault();
     if (pw === PASS) {
-      localStorage.setItem('ferauth', '1');
+      sessionStorage.setItem('ferauth', '1');
       setOk(true);
     } else {
       alert('비밀번호가 달라요!');
