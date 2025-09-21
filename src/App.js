@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import AuthGate from './AuthGate';
 import './App.css';
 
 /* ───────────────── 스타일 + 패널 컴포넌트 ───────────────── */
@@ -198,6 +199,7 @@ function App() {
   };
 
   return (
+  <AuthGate>
     <div className="App">
       <h1>ferarchive</h1>
 
@@ -208,7 +210,6 @@ function App() {
         dateClick={handleDateClick}
         eventClick={handleEventClick}
         eventContent={(arg) => {
-          // 달력 셀 안 표시 (원하면 리뷰 첫줄도 살짝 붙일 수 있어)
           return { html: arg.event.title.replace(/\n/g, "<br/>") };
         }}
         height="auto"
@@ -221,7 +222,8 @@ function App() {
         onDelete={deleteSelected}
       />
     </div>
-  );
+  </AuthGate>
+);
 }
 
 export default App;
