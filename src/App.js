@@ -1,74 +1,85 @@
-// ferarchive/src/App.js
+// src/App.js
 
 import React, { useState, useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
-
 import './App.css';
 
-// ✅ 모달 컴포넌트
-const DetailModal = ({ event, onClose }) => {
+/* ───────────────── 스타일 + 패널 컴포넌트 ───────────────── */
+
+const styles = {
+  panel: {
+    position: 'fixed', right: 16, top: 16, bottom: 16, width: 360,
+    background: '#fff', border: '1px solid #eee', borderRadius: 12,
+    padding: 16, boxShadow: '0 8px 24px rgba(0,0,0,.08)', overflowY: 'auto',
+    zIndex: 1000,
+  },
+  panelHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 8 },
+  close: { border: 'none', background: 'transparent', fontSize: 24, lineHeight: 1, cursor: 'pointer' },
+  date: { fontSize: 12, color: '#888' },
+  title: { fontSize: 18, fontWeight: 700, marginTop: 4 },
+  meta: { fontSize: 13, color: '#666', marginTop: 4 },
+  hr: { margin: '16px 0', border: 0, borderTop: '1px solid #eee' },
+  label: { fontSize: 12, color: '#888', marginBottom: 6 },
+  review: { whiteSpace: 'pre-wrap', lineHeight: 1.6 },
+  actions: { display: 'flex', gap: 8, marginTop: 16 },
+  btn: { padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd', background: '#fafafa', cursor: 'pointer' },
+  danger: { borderColor: '#f2c6c6', background: '#fff5f5', color: '#c22' },
+};
+
+const DiaryPanel = ({ event, onClose, onEdit, onDelete }) => {
   if (!event) return null;
+  const d = event.start
+    ? event.start.toISOString().slice(0,10)
+    : event.extendedProps?.date || '';
 
-  const getLabel = (category) => {
-    switch (category) {
-      case '영화': return '감독, 연출, 작가';
-      case '책': return '작가';
-      case '전시': return '작가, 기획자';
-      default: return '';
-    }
-  };
-
-  const getSubLabel = (category) => {
-    switch (category) {
-      case '영화': return '배우';
-      case '책': return '출판사';
-      case '전시': return '장소';
-      default: return '';
-    }
-  };
-
-  const mainTitle = event.title.split('\n')[0];
-  const creatorLabel = getLabel(event.extendedProps.category);
-  const actorsOrAuthorLabel = getSubLabel(event.extendedProps.category);
+  const xp = event.extendedProps || {};
+  const category = xp.category || '';
+  const creator = xp.creator || '';
+  const sub = xp.actorsOrAuthor || '';
+  const review = xp.review || '';
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <button className="modal-close-btn" onClick={onClose}>&times;</button>
-        <div className="modal-header">
-          <h2>{mainTitle}</h2>
-          <p className="modal-category">{event.extendedProps.category}</p>
-        </div>
-        <div className="modal-body">
-          <div className="modal-section">
-            <p><strong>{creatorLabel}:</strong> {event.extendedProps.creator || '없음'}</p>
-            <p><strong>{actorsOrAuthorLabel}:</strong> {event.extendedProps.actorsOrAuthor || '없음'}</p>
-          </div>
-          <hr />
-          <div className="modal-section review-section">
-            <h3>나의 감상평</h3>
-            <p>{event.extendedProps.review || '없음'}</p>
+    <aside style={styles.panel}>
+      <div style={styles.panelHeader}>
+        <div>
+          <div style={styles.date}>{d}</div>
+          <div style={styles.title}>{event.title || ''}</div>
+          <div style={styles.meta}>
+            <span>{category}</span>
+            {creator && <> · {creator}</>}
+            {sub && <> · {sub}</>}
           </div>
         </div>
+        <button style={styles.close} onClick={onClose}>×</button>
       </div>
-    </div>
+
+      <hr style={styles.hr} />
+
+      <div style={styles.label}>감상평</div>
+      <div style={styles.review}>{review || '— (아직 없음)'}</div>
+
+      <div style={styles.actions}>
+        <button onClick={onEdit} style={styles.btn}>수정</button>
+        <button onClick={onDelete} style={{...styles.btn, ...styles.danger}}>삭제</button>
+      </div>
+    </aside>
   );
 };
 
+/* ───────────────── App ───────────────── */
+
 function App() {
   const [events, setEvents] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [detailEvent, setDetailEvent] = useState(null); // 패널 표시용
 
-  // ✅ 1. 컴포넌트 로드 시 API에서 데이터 가져오기
+  // 1) 로드 시 DB에서 가져오기
   useEffect(() => {
     const load = async () => {
       try {
         const res = await fetch('/api/events');
         if (!res.ok) throw new Error('Failed to fetch');
-
         const data = await res.json();
 
         const formatted = data.map(ev => ({
@@ -77,18 +88,15 @@ function App() {
           date: typeof ev.date === 'string' ? ev.date.slice(0, 10) : ev.date,
           extendedProps: ev.extendedProps || {}
         }));
-
         setEvents(formatted);
-        console.log('📂 API에서 불러옴:', formatted);
       } catch (err) {
         console.error('Error fetching events:', err);
       }
     };
-
     load();
   }, []);
 
-  // ✅ 2. 새로운 기록 추가 (POST)
+  // 2) 날짜 클릭 → 새 이벤트 추가
   const handleDateClick = async (arg) => {
     const categoryOption = prompt(
       '어떤 기록을 남기시겠어요?\n\n1: 영화 🎬\n2: 책 📚\n3: 전시 🖼️\n\n번호를 입력하세요 (취소하려면 ESC)'
@@ -124,19 +132,14 @@ function App() {
         categoryTitle = "전시";
         break;
       default:
-        alert('잘못된 번호를 입력하셨습니다. 다시 시도해주세요.');
+        alert('잘못된 번호를 입력하셨어요. 다시 시도해 주세요.');
         return;
     }
 
     const newEvent = {
       title,
       date: arg.dateStr,
-      extendedProps: {
-        category: categoryTitle,
-        creator,
-        actorsOrAuthor,
-        review,
-      },
+      extendedProps: { category: categoryTitle, creator, actorsOrAuthor, review },
     };
 
     try {
@@ -146,73 +149,58 @@ function App() {
         body: JSON.stringify(newEvent),
       });
       setEvents((prev) => [...prev, newEvent]);
-      console.log("💾 데이터베이스에 저장됨:", newEvent);
     } catch (error) {
       console.error("Error saving event:", error);
     }
   };
 
-  // ✅ 3. 이벤트 클릭 → 수정 / 삭제
-  const handleEventClick = async (clickInfo) => {
-    const ev = clickInfo.event;
-
-    const action = prompt('무엇을 하시겠어요?\n1: 감상평 수정\n2: 삭제\n(취소하려면 Esc)', '1');
-    if (!action) return;
-
-    // 수정
-    if (action === '1') {
-      const current = ev.extendedProps.review || '';
-      const review = prompt('감상평을 입력/수정하세요', current);
-      if (review == null) return;
-
-      try {
-        await fetch('/api/events', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: Number(ev.id),
-            title: ev.title,
-            date: ev.startStr?.slice(0, 10) || ev.extendedProps.date || '',
-            extendedProps: { ...ev.extendedProps, review }
-          })
-        });
-
-        ev.setExtendedProp('review', review);
-        alert('수정 완료!');
-      } catch (err) {
-        console.error('Error updating event:', err);
-        alert('수정 실패');
-      }
-    }
-
-    // 삭제
-    if (action === '2') {
-      if (!window.confirm('정말 삭제할까요?')) return;
-
-      try {
-        await fetch('/api/events', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: Number(ev.id) })
-        });
-
-        ev.remove();
-        alert('삭제 완료!');
-      } catch (err) {
-        console.error('Error deleting event:', err);
-        alert('삭제 실패');
-      }
-    }
+  // 3) 이벤트 클릭 → 우측 패널 열기
+  const handleEventClick = (clickInfo) => {
+    setDetailEvent(clickInfo.event);
   };
 
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setSelectedEvent(null);
+  // 4) 패널: 수정
+  const editSelected = async () => {
+    if (!detailEvent) return;
+    const current = detailEvent.extendedProps?.review || '';
+    const next = prompt('감상평 수정', current);
+    if (next == null) return;
+
+    await fetch('/api/events', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: Number(detailEvent.id),
+        title: detailEvent.title,
+        date: detailEvent.start
+          ? detailEvent.start.toISOString().slice(0,10)
+          : detailEvent.extendedProps?.date || '',
+        extendedProps: { ...detailEvent.extendedProps, review: next }
+      })
+    });
+
+    detailEvent.setExtendedProp('review', next); // 화면 즉시 반영
+  };
+
+  // 5) 패널: 삭제
+  const deleteSelected = async () => {
+    if (!detailEvent) return;
+    if (!window.confirm('정말 삭제할까요?')) return;
+
+    await fetch('/api/events', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: Number(detailEvent.id) })
+    });
+
+    detailEvent.remove();
+    setDetailEvent(null);
   };
 
   return (
     <div className="App">
       <h1>ferarchive</h1>
+
       <FullCalendar
         plugins={[dayGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
@@ -220,16 +208,18 @@ function App() {
         dateClick={handleDateClick}
         eventClick={handleEventClick}
         eventContent={(arg) => {
+          // 달력 셀 안 표시 (원하면 리뷰 첫줄도 살짝 붙일 수 있어)
           return { html: arg.event.title.replace(/\n/g, "<br/>") };
         }}
         height="auto"
       />
-      {showModal && (
-        <DetailModal
-          event={selectedEvent}
-          onClose={handleCloseModal}
-        />
-      )}
+
+      <DiaryPanel
+        event={detailEvent}
+        onClose={() => setDetailEvent(null)}
+        onEdit={editSelected}
+        onDelete={deleteSelected}
+      />
     </div>
   );
 }
