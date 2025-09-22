@@ -172,7 +172,7 @@ function App() {
   return (
   <AuthGate>
     <div className="App">
-      <h1>ferarchive</h1>
+      <h1>ferarchive🔐</h1>
       <FullCalendar
         plugins={[dayGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
@@ -189,6 +189,5 @@ function App() {
     </div>
   </AuthGate>
 );
-}
 
 export default App;
