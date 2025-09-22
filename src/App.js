@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import AuthGate from './AuthGate';
 import './App.css';
 
 function App() {
@@ -169,12 +170,13 @@ function App() {
   };
 
   return (
+  <AuthGate>
     <div className="App">
       <h1>ferarchive</h1>
       <FullCalendar
         plugins={[dayGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
-        timeZone="local"            // ✅ 로컬 기준으로 표시
+        timeZone="local"            // ✅ 로컬 기준으로 표시 (네가 이미 넣어둔 옵션 유지)
         events={events}
         dateClick={handleDateClick}
         eventClick={handleEventClick}
@@ -185,7 +187,8 @@ function App() {
         height="auto"
       />
     </div>
-  );
+  </AuthGate>
+);
 }
 
 export default App;
