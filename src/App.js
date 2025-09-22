@@ -1,81 +1,14 @@
 // src/App.js
-
 import React, { useState, useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import AuthGate from './AuthGate';
 import './App.css';
-
-/* ───────────────── 스타일 + 패널 컴포넌트 ───────────────── */
-
-const styles = {
-  panel: {
-    position: 'fixed', right: 16, top: 16, bottom: 16, width: 360,
-    background: '#fff', border: '1px solid #eee', borderRadius: 12,
-    padding: 16, boxShadow: '0 8px 24px rgba(0,0,0,.08)', overflowY: 'auto',
-    zIndex: 1000,
-  },
-  panelHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 8 },
-  close: { border: 'none', background: 'transparent', fontSize: 24, lineHeight: 1, cursor: 'pointer' },
-  date: { fontSize: 12, color: '#888' },
-  title: { fontSize: 18, fontWeight: 700, marginTop: 4 },
-  meta: { fontSize: 13, color: '#666', marginTop: 4 },
-  hr: { margin: '16px 0', border: 0, borderTop: '1px solid #eee' },
-  label: { fontSize: 12, color: '#888', marginBottom: 6 },
-  review: { whiteSpace: 'pre-wrap', lineHeight: 1.6 },
-  actions: { display: 'flex', gap: 8, marginTop: 16 },
-  btn: { padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd', background: '#fafafa', cursor: 'pointer' },
-  danger: { borderColor: '#f2c6c6', background: '#fff5f5', color: '#c22' },
-};
-
-const DiaryPanel = ({ event, onClose, onEdit, onDelete }) => {
-  if (!event) return null;
-  const d = event.start
-    ? event.start.toISOString().slice(0,10)
-    : event.extendedProps?.date || '';
-
-  const xp = event.extendedProps || {};
-  const category = xp.category || '';
-  const creator = xp.creator || '';
-  const sub = xp.actorsOrAuthor || '';
-  const review = xp.review || '';
-
-  return (
-    <aside style={styles.panel}>
-      <div style={styles.panelHeader}>
-        <div>
-          <div style={styles.date}>{d}</div>
-          <div style={styles.title}>{event.title || ''}</div>
-          <div style={styles.meta}>
-            <span>{category}</span>
-            {creator && <> · {creator}</>}
-            {sub && <> · {sub}</>}
-          </div>
-        </div>
-        <button style={styles.close} onClick={onClose}>×</button>
-      </div>
-
-      <hr style={styles.hr} />
-
-      <div style={styles.label}>감상평</div>
-      <div style={styles.review}>{review || '— (아직 없음)'}</div>
-
-      <div style={styles.actions}>
-        <button onClick={onEdit} style={styles.btn}>수정</button>
-        <button onClick={onDelete} style={{...styles.btn, ...styles.danger}}>삭제</button>
-      </div>
-    </aside>
-  );
-};
-
-/* ───────────────── App ───────────────── */
 
 function App() {
   const [events, setEvents] = useState([]);
-  const [detailEvent, setDetailEvent] = useState(null); // 패널 표시용
 
-  // 1) 로드 시 DB에서 가져오기
+  // 1) 로드: DB → 그대로 써 (date는 YYYY-MM-DD 문자열 전제)
   useEffect(() => {
     const load = async () => {
       try {
@@ -83,13 +16,15 @@ function App() {
         if (!res.ok) throw new Error('Failed to fetch');
         const data = await res.json();
 
-        const formatted = data.map(ev => ({
-          id: ev.id,
+        const formatted = data.map((ev) => ({
+          id: ev.id,                 // DB에 있다면 id 포함
           title: ev.title,
-          date: typeof ev.date === 'string' ? ev.date.slice(0, 10) : ev.date,
-          extendedProps: ev.extendedProps || {}
+          date: ev.date,             // ← 날짜 문자열 그대로
+          extendedProps: ev.extendedProps || {},
         }));
+
         setEvents(formatted);
+        console.log('📂 API에서 불러옴:', formatted);
       } catch (err) {
         console.error('Error fetching events:', err);
       }
@@ -97,7 +32,7 @@ function App() {
     load();
   }, []);
 
-  // 2) 날짜 클릭 → 새 이벤트 추가
+  // 2) 추가: 클릭한 셀의 날짜 문자열(arg.dateStr)을 그대로 저장
   const handleDateClick = async (arg) => {
     const categoryOption = prompt(
       '어떤 기록을 남기시겠어요?\n\n1: 영화 🎬\n2: 책 📚\n3: 전시 🖼️\n\n번호를 입력하세요 (취소하려면 ESC)'
@@ -105,125 +40,152 @@ function App() {
     if (!categoryOption) return;
 
     let title, creator, actorsOrAuthor, review;
-    let categoryTitle = "";
+    let categoryTitle = '';
 
     switch (categoryOption) {
       case '1':
         title = prompt('🎬 영화 제목을 입력하세요:');
         if (!title) return;
-        creator = prompt('🎬 감독, 작가, 연출은 누구인가요? (쉼표로 구분)');
-        actorsOrAuthor = prompt('🎭 배우는 누구인가요? (쉼표로 구분)');
-        review = prompt('📝 한 줄 감상평을 입력해주세요:');
-        categoryTitle = "영화";
+        creator = prompt('🎬 감독/연출/작가 (쉼표로 구분 가능)');
+        actorsOrAuthor = prompt('🎭 배우 (쉼표로 구분 가능)');
+        review = prompt('📝 한 줄 감상평:');
+        categoryTitle = '영화';
         break;
       case '2':
         title = prompt('📚 책 제목을 입력하세요:');
         if (!title) return;
-        creator = prompt('🧑‍💻 작가는 누구인가요?');
-        actorsOrAuthor = prompt('📖 출판사는 어디인가요?');
-        review = prompt('📝 한 줄 감상평을 입력해주세요:');
-        categoryTitle = "책";
+        creator = prompt('🧑‍💻 작가:');
+        actorsOrAuthor = prompt('📖 출판사:');
+        review = prompt('📝 한 줄 감상평:');
+        categoryTitle = '책';
         break;
       case '3':
         title = prompt('🖼️ 전시 제목을 입력하세요:');
         if (!title) return;
-        creator = prompt('🎨 작가는 누구인가요?');
-        actorsOrAuthor = prompt('🏛️ 장소는 어디인가요?');
-        review = prompt('📝 한 줄 감상평을 입력해주세요:');
-        categoryTitle = "전시";
+        creator = prompt('🎨 작가/기획자:');
+        actorsOrAuthor = prompt('🏛️ 장소:');
+        review = prompt('📝 한 줄 감상평:');
+        categoryTitle = '전시';
         break;
       default:
-        alert('잘못된 번호를 입력하셨어요. 다시 시도해 주세요.');
+        alert('잘못된 번호입니다.');
         return;
     }
 
     const newEvent = {
       title,
-      date: arg.dateStr,
-      extendedProps: { category: categoryTitle, creator, actorsOrAuthor, review },
+      date: arg.dateStr, // ← 'YYYY-MM-DD' 그대로 저장
+      extendedProps: {
+        category: categoryTitle,
+        creator,
+        actorsOrAuthor,
+        review,
+      },
     };
 
     try {
-      await fetch('/api/events', {
+      const res = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newEvent),
       });
-      setEvents((prev) => [...prev, newEvent]);
+
+      // DB가 id를 반환해 주면 반영 (없으면 새로고침 후 로드 시 붙음)
+      let created = newEvent;
+      if (res.ok) {
+        try {
+          const payload = await res.json();
+          if (payload?.id) created = { ...newEvent, id: payload.id };
+        } catch (_) {}
+      }
+
+      setEvents((prev) => [...prev, created]);
+      console.log('💾 저장됨:', created);
     } catch (error) {
-      console.error("Error saving event:", error);
+      console.error('Error saving event:', error);
     }
   };
 
-  // 3) 이벤트 클릭 → 우측 패널 열기
-  const handleEventClick = (clickInfo) => {
-    setDetailEvent(clickInfo.event);
-  };
+  // 3) 수정/삭제 (id 필요) — 새로 추가 직후엔 id가 없을 수도 → 새로고침 후 수정 가능
+  const handleEventClick = async (clickInfo) => {
+    const ev = clickInfo.event;
+    const action = prompt('무엇을 하시겠어요?\n1: 감상평 수정\n2: 삭제\n(취소: Esc)', '1');
+    if (!action) return;
 
-  // 4) 패널: 수정
-  const editSelected = async () => {
-    if (!detailEvent) return;
-    const current = detailEvent.extendedProps?.review || '';
-    const next = prompt('감상평 수정', current);
-    if (next == null) return;
+    // 수정
+    if (action === '1') {
+      const current = ev.extendedProps.review || '';
+      const review = prompt('감상평 입력/수정', current);
+      if (review == null) return;
 
-    await fetch('/api/events', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: Number(detailEvent.id),
-        title: detailEvent.title,
-        date: detailEvent.start
-          ? detailEvent.start.toISOString().slice(0,10)
-          : detailEvent.extendedProps?.date || '',
-        extendedProps: { ...detailEvent.extendedProps, review: next }
-      })
-    });
+      if (!ev.id) {
+        alert('방금 추가한 항목은 새로고침 후 수정 가능해요(서버 id 필요)');
+        return;
+      }
 
-    detailEvent.setExtendedProp('review', next); // 화면 즉시 반영
-  };
+      try {
+        await fetch('/api/events', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: Number(ev.id),
+            title: ev.title,
+            date: ev.startStr?.slice(0, 10) || ev.extendedProps.date || ev.extendedProps?.date || '',
+            extendedProps: { ...ev.extendedProps, review },
+          }),
+        });
+        ev.setExtendedProp('review', review);
+        alert('수정 완료!');
+      } catch (err) {
+        console.error('Error updating event:', err);
+        alert('수정 실패');
+      }
+    }
 
-  // 5) 패널: 삭제
-  const deleteSelected = async () => {
-    if (!detailEvent) return;
-    if (!window.confirm('정말 삭제할까요?')) return;
+    // 삭제
+    if (action === '2') {
+      if (!window.confirm('정말 삭제할까요?')) return;
 
-    await fetch('/api/events', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: Number(detailEvent.id) })
-    });
+      if (!ev.id) {
+        // id가 없으면 클라이언트에서만 제거
+        ev.remove();
+        setEvents((prev) => prev.filter((e) => e !== ev));
+        return;
+      }
 
-    detailEvent.remove();
-    setDetailEvent(null);
+      try {
+        await fetch('/api/events', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: Number(ev.id) }),
+        });
+        ev.remove();
+        alert('삭제 완료!');
+      } catch (err) {
+        console.error('Error deleting event:', err);
+        alert('삭제 실패');
+      }
+    }
   };
 
   return (
-  <AuthGate>
     <div className="App">
       <h1>ferarchive</h1>
-
       <FullCalendar
         plugins={[dayGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
+        timeZone="local"            // ✅ 로컬 기준으로 표시
         events={events}
         dateClick={handleDateClick}
         eventClick={handleEventClick}
         eventContent={(arg) => {
-          return { html: arg.event.title.replace(/\n/g, "<br/>") };
+          // 셀 안에서 줄바꿈 유지
+          return { html: arg.event.title.replace(/\n/g, '<br/>') };
         }}
         height="auto"
       />
-
-      <DiaryPanel
-        event={detailEvent}
-        onClose={() => setDetailEvent(null)}
-        onEdit={editSelected}
-        onDelete={deleteSelected}
-      />
     </div>
-  </AuthGate>
-);
+  );
 }
 
 export default App;
